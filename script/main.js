@@ -1,11 +1,12 @@
 
 const padding = 15
-const nRows = 25  // 70 mx
-const nCols = 40 // 100 max
-const nCells = nRows * nCols
-const timeStepMs = 100
+var nRows = 70  // 70 mx
+var nCols = 100 // 100 max
+var nCells = nRows * nCols
+const timeStepMs = 1
 var ctx, w, h, cellWidth, cellHeight
 var timoutId
+var maze
 
 // ToDo not nice global scope arrays walls use in maze and cell
 var iterations = 0
@@ -355,29 +356,40 @@ Cell = function (maze, i, j) {
 const drawGrid = function (canvas) {
 
     ctx = canvas.getContext("2d")
-
+    
     w = ctx.canvas.width
     h = ctx.canvas.height
     cellWidth = (w - 2 * padding) / nCols
     cellHeight = (h - 2 * padding) / nRows
-
-
+        
     console.log(`width: ${w} height: ${h}`)
-    var maze = new Maze(nRows, nCols, 0)
+    ctx.clearRect(0, 0, w, h)
+    maze = new Maze(nRows, nCols, 0)
     console.log(maze)
     // build up maze
     maze.buildMaze()
     maze.stroke()
+}
 
+const walkMaze = function () {
+    console.log("Start walking maze")
     // walk through maze
     maze.walk()
 }
 
+$("#generate-maze").click(function () {
+    console.debug("generate-maze:")
+    nRows = $("#nrows").val()
+    nCols = $("#ncolumns").val()
+    drawGrid(canvas)
+})
+
+$("#walk-maze").click(function() {
+    console.debug("walk-maze")
+    walkMaze()
+})
+
 $(document).ready(function () {
     console.log('document ready')
     canvas = $("#canvas")[0]
-    // console.dir(canvas)
-
-
-    drawGrid(canvas);
 })

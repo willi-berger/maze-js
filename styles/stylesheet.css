@@ -2,3 +2,13 @@
 #canvas {
     border: 1px solid;
 }
+#mazecanvas {
+    float: left;
+    margin-right: 1em;
+}
+#controls {
+    padding: 1em;
+}
+#controls label {
+    padding-right: 1em;
+}
