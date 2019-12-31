@@ -1,15 +1,13 @@
 
 const padding = 15
-const nRows = 10 
-const nCols = 15
+const nRows = 25  // 70 mx
+const nCols = 40 // 100 max
 const nCells = nRows * nCols
 const timeStepMs = 100
 var ctx, w, h, cellWidth, cellHeight
 var timoutId
 
 // ToDo not nice global scope arrays walls use in maze and cell
-wallsHor = []
-wallsVer = []
 var iterations = 0
 
 
@@ -25,16 +23,24 @@ const sleep = function (millis, i, j) {
 
 const Direction = { "top": 0, "right": 1, "bottom": 2, "left": 3 }
 
-Maze = function (nRows, nCols, v) {
+Maze = function (nRows, nCols) {
     this.cells = []
     this.allCells = []
     this.nRows = nRows
     this.nCols = nCols
+    // stack for next cells to visit (dfs)
     this.stack = []
+    // current path while walking
+    this.path = [] 
+    // fork points to return to from a dead end         
+    this.forks = []         
+    this.wallsHor = []
+    this.wallsVer = []
+    
     for (var i = 0; i < nRows; i++) {
         this.cells[i] = []
         for (var j = 0; j < nCols; j++) {
-            var cell = new Cell(i, j)
+            var cell = new Cell(this, i, j)
             this.cells[i][j] = cell
             this.allCells.push(cell)
         }
@@ -43,16 +49,17 @@ Maze = function (nRows, nCols, v) {
 
     // initialize walls array
     for (var i = 0; i <= nRows; i++) {
-        wallsHor[i] = []
-        wallsVer[i] = []
+        this.wallsHor[i] = []
+        this.wallsVer[i] = []
         for (var j = 0; j <= nCols; j++) {
-            wallsHor[i][j] = 1
-            wallsVer[i][j] = 1
+            this.wallsHor[i][j] = 1
+            this.wallsVer[i][j] = 1
         }
     }
-    wallsHor[0][0] = 0
-    wallsVer[nRows - 1][nCols] = 0
-    console.log(wallsVer)
+    this.wallsHor[0][0] = 0  // entry
+    this.wallsVer[nRows - 1][nCols] = 0  // exit
+
+    console.log(this.wallsVer)
     this.buildMaze = function () {
         this.visitCell(0, 0)
     }
@@ -62,6 +69,9 @@ Maze = function (nRows, nCols, v) {
         this.allCells.forEach((cell) => { cell.stroke() })
     }
 
+    /**
+     * visit cells recursive and break walls to build a maze
+     */
     this.visitCell = function (i, j) {
         console.log('visit ' + i + ' ' + j)
         this.cells[i][j].visit(1)
@@ -78,16 +88,16 @@ Maze = function (nRows, nCols, v) {
     this.removeWallToNeighbour = function (i, j, dir) {
         switch (dir) {
             case Direction.top:
-                wallsHor[i][j] = 0
+                this.wallsHor[i][j] = 0
                 break
             case Direction.bottom:
-                wallsHor[i + 1][j] = 0
+                this.wallsHor[i + 1][j] = 0
                 break
             case Direction.left:
-                wallsVer[i][j] = 0
+                this.wallsVer[i][j] = 0
                 break
             case Direction.right:
-                wallsVer[i][j + 1] = 0
+                this.wallsVer[i][j + 1] = 0
                 break
         }
     }
@@ -139,22 +149,33 @@ Maze = function (nRows, nCols, v) {
     this.determineNeighbours = function (cell) {
         let neighbours = []
         let i = cell.i; let j = cell.j
-        if (i > 0 && wallsHor[i][j] == 0) {
+        if (i > 0 && this.wallsHor[i][j] == 0) {
             neighbours.push(Direction.top)
         }
-        if (i < nRows - 1 && wallsHor[i + 1][j] == 0) {
+        if (i < nRows - 1 && this.wallsHor[i + 1][j] == 0) {
             neighbours.push(Direction.bottom)
         }
-        if (j > 0 && wallsVer[i][j] == 0) {
+        if (j > 0 && this.wallsVer[i][j] == 0) {
             neighbours.push(Direction.left)
         }
-        if (j < nCols - 1 && wallsVer[i][j + 1] == 0) {
+        if (j < nCols - 1 && this.wallsVer[i][j + 1] == 0) {
             neighbours.push(Direction.right)
         }
         // console.log('neighbours of '+i+','+j+': '+neighbours)
         return neighbours
     }
 
+
+    this.hasUnvisitedNeighbours = function (self, cell) {
+        let neighbours = self.determineNeighbours(cell)
+        let hasUnvisited = false
+        neighbours.forEach(dir => {
+            let neighbour = self.neighbour(cell.i, cell.j, dir)
+            if (neighbour.visited < 2)
+                hasUnvisited = true
+        })
+        return hasUnvisited
+    }
 
    
     /**
@@ -166,14 +187,9 @@ Maze = function (nRows, nCols, v) {
             cell.strokeVistorIsIn()
             cell.visit(2)
             iterations++;
-
-
             var neighbours = this.determineNeighbours(cell)
-
-            // ToDo check if at exit ..
-
+            // ToDo check if at exit .
             if (neighbours.length > 0) {
-
                 neighbours.forEach(dir => {
                     let neighbour = this.neighbour(cell.i, cell.j, dir)
                     if (neighbour.visited < 2) {
@@ -187,48 +203,76 @@ Maze = function (nRows, nCols, v) {
     }
 
 
-    this.depthFirstSearchIterative = function (start) {
-        console.log('depthFirstSearchIterative(' + start.i + ',' + start.j + ')')
+    /**
+     * dfs iterative initialize
+     */
+    this.depthFirstSearchIterativeInitialize = function (start) {
+        console.log('depthFirstSearchIterativeInitialize(' + start.i + ',' + start.j + ')')
         this.stack.push(start)
+        this.forks.push(start)
         this.depthFirstSearchIterativeStep(this)
-
     }
 
     this.depthFirstSearchIterativeStep = function (self) {
 
         if (self.stack.length > 0) {
             let cell = self.stack.pop()
-            console.log('depthFirstSearchIterativeStep(' + cell.i + ',' + cell.j + ')')
+            console.log('depthFirstSearchIterativeStep(' + cell.i + ',' + cell.j + ')', cell)
 
+            self.path.push(cell)
             cell.strokeVistorIsIn()
             cell.visit(2)
+
             iterations++;
             let neighbours = self.determineNeighbours(cell)
 
-            // ToDo check if at exit ..
+            // check if at exit 
+            if (cell.i == nRows-1 && cell.j == nCols-1) {
+                console.info("Exit found :)")
+                return
+            }
 
+            let hasUnvisitedNeighbour = false
             if (neighbours.length > 0) {
+                self.forks.push(cell)
                 neighbours.forEach(dir => {
                     let neighbour = self.neighbour(cell.i, cell.j, dir)
                     if (neighbour.visited < 2) {
                         console.log('push cell ' + neighbour.i + ' ' + neighbour.j )
                         self.stack.push(neighbour)
+                        hasUnvisitedNeighbour = true
                     }
-                })
+                })                
             }
 
-            setTimeout(self.depthFirstSearchIterativeStep, timeStepMs, self)
+            if (!hasUnvisitedNeighbour) {
+                setTimeout(self.walkBack, timeStepMs, self)
+            } else {
+                setTimeout(self.depthFirstSearchIterativeStep, timeStepMs, self)
+            }
+
         } else {
-            console.log('dfs iterative done')
+            console.log('stack is empty, dfs iterative done')
         }
     }
 
+    this.walkBack = function (self) {
+        let cell = self.path.pop()
+        console.log('walkback:', cell)
+        if (!self.hasUnvisitedNeighbours(self,cell)) {
+            cell.strokeVistorIsIn('red')
+            setTimeout(self.walkBack, timeStepMs, self, cell)
+        } else {
+            self.path.push(cell)
+            setTimeout(self.depthFirstSearchIterativeStep, timeStepMs, self)
+        }
+    }
 
     this.walk = function () {
         console.log('start walk')
         let start = this.getCell(0, 0)
         //start.strokeVistorIsIn()
-        this.depthFirstSearchIterative(start)
+        this.depthFirstSearchIterativeInitialize(start)
     }
 
     this.getCell = function (i, j) {
@@ -238,7 +282,8 @@ Maze = function (nRows, nCols, v) {
 }
 
 
-Cell = function (i, j) {
+Cell = function (maze, i, j) {
+    this.maze
     this.i = i
     this.j = j
     this.visited = 0
@@ -252,47 +297,48 @@ Cell = function (i, j) {
         let j = this.j
         ctx.beginPath()
         ctx.moveTo(0, 0)
-        if (wallsHor[i][j] == 1) {
+        if (maze.wallsHor[i][j] == 1) {
             ctx.lineTo(cellWidth, 0)
         } else {
             ctx.moveTo(cellWidth, 0)
         }
-        if (wallsVer[i][j + 1] == 1) {
+        if (maze.wallsVer[i][j + 1] == 1) {
             ctx.lineTo(cellWidth, cellHeight)
         } else {
             ctx.moveTo(cellWidth, cellHeight)
         }
-        if (wallsHor[i + 1][j] == 1) {
+        if (maze.wallsHor[i + 1][j] == 1) {
             ctx.lineTo(0, cellHeight)
         } else {
             ctx.moveTo(0, cellHeight)
         }
-        if (wallsVer[i][j] == 1) {
+        if (maze.wallsVer[i][j] == 1) {
             ctx.lineTo(0, 0)
         } else {
             ctx.moveTo(0, 0)
         }
         ctx.stroke()
-
         ctx.restore()
     }
 
 
-    this.strokeVistorIsIn = function () {
+    this.strokeVistorIsIn = function (walkback) {
         this.ctxTranslate()
         let i = this.i
         let j = this.j
         ctx.beginPath()
 
-        let r = Math.floor(255 * (iterations / nCells))
-        let g = Math.floor(255 * (iterations / nCells))
-        let b = Math.floor(255 * (iterations / nCells))
-
-        ctx.fillStyle = `rgb(255, 255, ${b})`
-        ctx.arc(cellWidth / 2, cellHeight / 2, Math.min(cellWidth, cellHeight) * 0.5 * 0.9, 0, 2 * Math.PI)
+        if (undefined !== walkback) {
+            ctx.fillStyle = `rgb(100, 100, 100)`
+        } else {
+            let r = Math.floor(255 * (iterations / nCells))
+            let g = Math.floor(255 * (iterations / nCells))
+            let b = Math.floor(255 * (iterations / nCells))
+            ctx.fillStyle = `rgb(255, 0, 0)`
+        }
+        ctx.arc(cellWidth / 2, cellHeight / 2, Math.min(cellWidth, cellHeight) * 0.5 * 0.6, 0, 2 * Math.PI)
         ctx.fill()
-        ctx.strokeText(iterations, cellWidth/2, cellHeight)
-        ctx.strokeText
+        //ctx.strokeText(iterations, cellWidth/2, cellHeight)
         ctx.restore()
     }
 
