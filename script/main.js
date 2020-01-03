@@ -3,7 +3,7 @@ const padding = 15
 var nRows = 70  // 70 mx
 var nCols = 100 // 100 max
 var nCells = nRows * nCols
-const timeStepMs = 1
+var timeStepMs = 100
 var ctx, w, h, cellWidth, cellHeight
 var timoutId
 var maze
@@ -134,17 +134,21 @@ Maze = function (nRows, nCols) {
         }
 
         console.log('directions:' + directions)
-        // shuffle Fisher Yates
-        let nDirs = directions.length
-        for (let i = 0; i < nDirs - 1; i++) {
-            let k = Math.floor(Math.random() * (nDirs - i))
-            let tmp = directions[k]
-            directions[k] = directions[i]
-            directions[i] = tmp
-
-        }
+        directions = this.shuffle(directions)
         console.log('directions to visit for ' + i + ',' + j + ':' + directions)
         return directions
+    }
+    
+    this.shuffle = function (arr) {
+        // shuffle with Fisher Yates
+        let nDirs = arr.length
+        for (let i = 0; i < nDirs - 1; i++) {
+            let k = Math.floor(Math.random() * (nDirs - i))
+            let tmp = arr[k]
+            arr[k] = arr[i]
+            arr[i] = tmp
+        }
+        return arr
     }
 
     this.determineNeighbours = function (cell) {
@@ -235,6 +239,7 @@ Maze = function (nRows, nCols) {
 
             let hasUnvisitedNeighbour = false
             if (neighbours.length > 0) {
+                neighbours = self.shuffle(neighbours)
                 self.forks.push(cell)
                 neighbours.forEach(dir => {
                     let neighbour = self.neighbour(cell.i, cell.j, dir)
@@ -381,7 +386,12 @@ $("#generate-maze").click(function () {
     console.debug("generate-maze:")
     nRows = $("#nrows").val()
     nCols = $("#ncolumns").val()
+    timeStepMs = $("#timestep").val()
     drawGrid(canvas)
+})
+
+$("#timestep").change(function() {
+    timeStepMs = $("#timestep").val()
 })
 
 $("#walk-maze").click(function() {
